@@ -1,4 +1,3 @@
-
 name: Build Fortnite AFK Manager
 
 on:
@@ -10,7 +9,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
 
     steps:
       - name: Checkout
@@ -38,26 +37,45 @@ jobs:
           sdkmanager --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
       - name: Extract project
+        shell: bash
         run: |
-          mkdir -p source
-          unzip -q FortniteAFKManager-Android-Starter.zip -d source
-          test -f source/FortniteAFKManager/settings.gradle.kts
+          ZIP="FortniteAFKManager-Companion-v2-CORRIGIDO.zip"
 
-      - name: Check project files
-        run: |
-          test -f source/FortniteAFKManager/app/build.gradle.kts
-          test -f source/FortniteAFKManager/app/src/main/java/com/guh/fortniteafkmanager/MainActivity.kt
+          test -f "$ZIP" || {
+            echo "ERRO: ZIP não encontrado na raiz do repositório."
+            ls -la
+            exit 1
+          }
+
+          mkdir -p source
+          unzip -q "$ZIP" -d source
+
+          SETTINGS=$(find source -name settings.gradle.kts -print -quit)
+
+          test -n "$SETTINGS" || {
+            echo "ERRO: settings.gradle.kts não encontrado."
+            find source -maxdepth 4 -type f
+            exit 1
+          }
+
+          PROJECT_DIR=$(dirname "$SETTINGS")
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+          test -f "$PROJECT_DIR/app/build.gradle.kts"
+          echo "Projeto encontrado em: $PROJECT_DIR"
 
       - name: Build APK
-        run: gradle -p source/FortniteAFKManager --no-daemon clean assembleDebug
+        run: |
+          gradle -p "$PROJECT_DIR" --no-daemon clean assembleDebug
 
       - name: Verify APK
-        run: test -s source/FortniteAFKManager/app/build/outputs/apk/debug/app-debug.apk
+        run: |
+          test -s "$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Fortnite-AFK-Manager-APK
-          path: source/FortniteAFKManager/app/build/outputs/apk/debug/app-debug.apk
+          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
